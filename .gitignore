@@ -1,0 +1,32 @@
+.DS_Store
+Thumbs.db
+desktop.ini
+
+## Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+# Real environment files can contain database passwords and API keys.
+# Commit only *.example templates.
+.env
+.env.local
+backend/.env
+frontend/.env.local
+.vercel/
+*.log
+
+## Backend
+backend/storage/
+
+## Node / Frontend
+node_modules/
+dist/
+.vite/
+frontend/node_modules/
+frontend/dist/
+
