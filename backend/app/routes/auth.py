@@ -29,10 +29,10 @@ def _set_auth_cookies(response: Response, email: str, remember_me: bool) -> None
     access_max_age = ACCESS_TOKEN_EXPIRE_MINUTES * 60 * (7 if remember_me else 1)
     refresh_max_age = REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60 if remember_me else 24 * 60 * 60
     cookie_args = {
-        "httponly": True,
-        "secure": COOKIE_SECURE,
-        "samesite": "lax",
-        "path": "/",
+    "httponly": True,
+    "secure": True,
+    "samesite": "none",
+    "path": "/",
     }
     response.set_cookie("access_token", access_token, max_age=access_max_age, **cookie_args)
     response.set_cookie("refresh_token", refresh_token, max_age=refresh_max_age, **cookie_args)
