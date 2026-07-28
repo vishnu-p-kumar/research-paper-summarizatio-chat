@@ -167,6 +167,9 @@ export default function Summary({ docId }) {
                     <div className="mb-2 text-sm font-bold text-fz-primary">
                       {e.name || `Equation ${idx + 1}`}
                     </div>
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-fz-textmuted">
+                      Equation
+                    </div>
                     <div className="whitespace-pre-wrap rounded-lg bg-black/30 px-3 py-2 font-mono text-xs text-fz-text ring-1 ring-fz-border">
                       {e.equation}
                     </div>

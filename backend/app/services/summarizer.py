@@ -56,6 +56,15 @@ def detect_equations(text: str, max_equations: int = 8) -> List[str]:
     return equations[:max_equations]
 
 
+def _looks_like_equation(value: Any) -> bool:
+    text = str(value or "").strip()
+    if len(text) < 3:
+        return False
+    symbols = ("=", "∑", "∫", "→", "≈", "≤", "≥", "+", "-", "/", "^", "_")
+    latex_markers = ("\\frac", "\\sum", "\\int", "\\theta", "\\alpha", "\\beta", "\\lambda")
+    return any(symbol in text for symbol in symbols) or any(marker in text for marker in latex_markers)
+
+
 def _normalize_key_concepts(items: Any) -> List[Dict[str, str]]:
     if not isinstance(items, list):
         return []
@@ -151,7 +160,7 @@ return ONLY valid JSON with this exact schema:
   "key_concepts": [
     {{"name": "concept name", "explanation": "short clear explanation"}}
   ],
-  "equations_detected": ["eq1", "eq2"]
+  "equations_detected": ["complete equation copied exactly from the paper"]
 }}
 
 Rules:
@@ -160,7 +169,8 @@ Rules:
 - After the paragraphs, include numbered points for objectives, method, results, limitations, and conclusion.
 - Use plain text only. Do not use Markdown headings, bold text, bullet symbols, asterisks, or blockquotes.
 - key_concepts should be 6-12 items, each with a concept name and short explanation.
-- equations_detected can be empty (we will also detect heuristically).
+- equations_detected must contain the actual complete equation text or formula copied from the paper, not only the equation name.
+- equations_detected can be empty if no real equation is visible.
 
 Chunk summaries:
 {combined}
@@ -181,11 +191,18 @@ Chunk summaries:
 
         data["key_concepts"] = _normalize_key_concepts(data.get("key_concepts", []))
 
-        # Backfill equations via heuristic detection if missing.
+        # Prefer real equation-looking text from the source PDF. LLMs sometimes return
+        # equation labels instead of formulas, so we filter those out.
+        detected_from_text = detect_equations(paper_text)
         if not isinstance(data.get("equations_detected"), list):
             data["equations_detected"] = []
-        if not data["equations_detected"]:
-            data["equations_detected"] = detect_equations(paper_text)
+        model_equations = [eq for eq in data["equations_detected"] if _looks_like_equation(eq)]
+        combined_equations: List[str] = []
+        for eq in [*detected_from_text, *model_equations]:
+            clean_eq = str(eq).strip()
+            if clean_eq and clean_eq not in combined_equations:
+                combined_equations.append(clean_eq)
+        data["equations_detected"] = combined_equations[:8]
 
         return data
 
@@ -203,6 +220,7 @@ Return ONLY valid JSON with this exact schema:
 
 Rules:
 - Name the equation based on what it represents in the paper.
+- Keep the equation itself unchanged; do not replace it with a description.
 - The explanation should be simple and 2-4 sentences.
 - Do not use Markdown headings, bold text, bullet symbols, asterisks, or blockquotes.
 
