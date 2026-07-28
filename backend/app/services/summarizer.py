@@ -56,6 +56,38 @@ def detect_equations(text: str, max_equations: int = 8) -> List[str]:
     return equations[:max_equations]
 
 
+def _normalize_key_concepts(items: Any) -> List[Dict[str, str]]:
+    if not isinstance(items, list):
+        return []
+
+    concepts: List[Dict[str, str]] = []
+    for idx, item in enumerate(items[:12], start=1):
+        name = ""
+        explanation = ""
+
+        if isinstance(item, dict):
+            name = str(item.get("name") or item.get("concept") or item.get("title") or "").strip()
+            explanation = str(
+                item.get("explanation") or item.get("description") or item.get("meaning") or ""
+            ).strip()
+        else:
+            raw = str(item).strip()
+            if ":" in raw:
+                name, explanation = [part.strip() for part in raw.split(":", 1)]
+            else:
+                name = raw
+
+        if name or explanation:
+            concepts.append(
+                {
+                    "name": name or f"Concept {idx}",
+                    "explanation": explanation,
+                }
+            )
+
+    return concepts
+
+
 def _chunk_for_llm(text: str, max_chars: int = 6000, overlap: int = 400) -> List[str]:
     """
     Chunk text before sending it to the hosted model so we can cover the entire PDF.
@@ -116,7 +148,9 @@ Using ONLY the chunk summaries below (which together cover the full paper),
 return ONLY valid JSON with this exact schema:
 {{
   "summary": "complete multi-paragraph research paper summary",
-  "key_concepts": ["concept 1: clear explanation", "concept 2: clear explanation"],
+  "key_concepts": [
+    {{"name": "concept name", "explanation": "short clear explanation"}}
+  ],
   "equations_detected": ["eq1", "eq2"]
 }}
 
@@ -125,7 +159,7 @@ Rules:
 - summary should start with 1-2 explanatory paragraphs.
 - After the paragraphs, include numbered points for objectives, method, results, limitations, and conclusion.
 - Use plain text only. Do not use Markdown headings, bold text, bullet symbols, asterisks, or blockquotes.
-- key_concepts should be 6-12 items, each with a short explanation.
+- key_concepts should be 6-12 items, each with a concept name and short explanation.
 - equations_detected can be empty (we will also detect heuristically).
 
 Chunk summaries:
@@ -145,6 +179,8 @@ Chunk summaries:
         if not data.get("summary"):
             data["summary"] = data.get("detailed_summary", "") or data.get("short_summary", "")
 
+        data["key_concepts"] = _normalize_key_concepts(data.get("key_concepts", []))
+
         # Backfill equations via heuristic detection if missing.
         if not isinstance(data.get("equations_detected"), list):
             data["equations_detected"] = []
@@ -155,16 +191,32 @@ Chunk summaries:
 
     def explain_equations(self, equations: List[str]) -> List[Dict[str, str]]:
         explanations: List[Dict[str, str]] = []
-        for eq in equations[:8]:
+        for idx, eq in enumerate(equations[:8], start=1):
             prompt = f"""
-Explain this equation in simple terms.
-Use one short paragraph, then 2-3 numbered points if useful.
-Do not use Markdown headings, bold text, bullet symbols, asterisks, or blockquotes.
+You are an expert research assistant.
+
+Return ONLY valid JSON with this exact schema:
+{{
+  "name": "short equation name",
+  "explanation": "short plain text explanation"
+}}
+
+Rules:
+- Name the equation based on what it represents in the paper.
+- The explanation should be simple and 2-4 sentences.
+- Do not use Markdown headings, bold text, bullet symbols, asterisks, or blockquotes.
 
 Equation:
 {eq}
 """.strip()
-            explanation = self._llm.generate_response(prompt)
-            explanations.append({"equation": eq, "explanation": explanation})
+            raw = self._llm.generate_response(prompt)
+            parsed = _safe_json_loads(raw)
+            explanations.append(
+                {
+                    "name": str(parsed.get("name") or f"Equation {idx}").strip(),
+                    "equation": eq,
+                    "explanation": str(parsed.get("explanation") or raw).strip(),
+                }
+            )
         return explanations
 

@@ -28,6 +28,29 @@ function formatPlainText(text) {
     .trim();
 }
 
+function normalizeConcept(item, idx) {
+  if (item && typeof item === "object") {
+    return {
+      name: item.name || item.concept || item.title || `Concept ${idx + 1}`,
+      explanation: item.explanation || item.description || item.meaning || "",
+    };
+  }
+
+  const raw = String(item || "").trim();
+  if (raw.includes(":")) {
+    const [name, ...rest] = raw.split(":");
+    return {
+      name: name.trim() || `Concept ${idx + 1}`,
+      explanation: rest.join(":").trim(),
+    };
+  }
+
+  return {
+    name: raw || `Concept ${idx + 1}`,
+    explanation: "",
+  };
+}
+
 export default function Summary({ docId }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -105,15 +128,25 @@ export default function Summary({ docId }) {
               Key concepts
             </div>
             {Array.isArray(data.key_concepts) && data.key_concepts.length ? (
-              <div className="flex flex-wrap gap-2">
-                {data.key_concepts.map((k, idx) => (
-                  <span
-                    key={idx}
-                    className="rounded-full border border-fz-primary/20 bg-fz-primary/10 px-3 py-1 text-sm font-medium text-fz-primary"
-                  >
-                    {k}
-                  </span>
-                ))}
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {data.key_concepts.map((item, idx) => {
+                  const concept = normalizeConcept(item, idx);
+                  return (
+                    <div
+                      key={idx}
+                      className="rounded-lg border border-fz-primary/20 bg-fz-primary/10 p-4"
+                    >
+                      <div className="text-sm font-bold text-fz-primary">
+                        {concept.name}
+                      </div>
+                      {concept.explanation ? (
+                        <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-fz-textmuted">
+                          {formatPlainText(concept.explanation)}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="text-sm text-fz-textmuted">No concepts returned.</div>
@@ -131,8 +164,14 @@ export default function Summary({ docId }) {
                     key={idx}
                     className="rounded-lg border border-fz-border bg-black/20 p-4"
                   >
+                    <div className="mb-2 text-sm font-bold text-fz-primary">
+                      {e.name || `Equation ${idx + 1}`}
+                    </div>
                     <div className="whitespace-pre-wrap rounded-lg bg-black/30 px-3 py-2 font-mono text-xs text-fz-text ring-1 ring-fz-border">
                       {e.equation}
+                    </div>
+                    <div className="mt-3 text-xs font-semibold uppercase tracking-[0.14em] text-fz-textmuted">
+                      Short explanation
                     </div>
                     <div className="mt-3 whitespace-pre-wrap text-sm leading-6 text-fz-textmuted">
                       {formatPlainText(e.explanation)}
