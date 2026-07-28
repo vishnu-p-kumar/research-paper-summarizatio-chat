@@ -89,7 +89,7 @@ function Message({ type, children }) {
 
 export function LoginPage() {
   const { login } = useAuth();
-  const [form, setForm] = useState({ email: "", password: "", remember_me: true });
+  const [form, setForm] = useState({ email: "", password: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -98,7 +98,7 @@ export function LoginPage() {
     setBusy(true);
     setError("");
     try {
-      await login(form);
+      await login({ ...form, remember_me: false });
       navigate("/");
     } catch (err) {
       setError(authErrorMessage(err));
@@ -116,11 +116,7 @@ export function LoginPage() {
         <Field label="Password">
           <PasswordInput value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
         </Field>
-        <div className="flex items-center justify-between gap-3 text-sm">
-          <label className="flex items-center gap-2 text-fz-textmuted">
-            <input type="checkbox" checked={form.remember_me} onChange={(e) => setForm({ ...form, remember_me: e.target.checked })} />
-            Remember me
-          </label>
+        <div className="flex items-center justify-end gap-3 text-sm">
           <button type="button" className="font-bold text-fz-primary" onClick={() => navigate("/forgot-password")}>
             Forgot password?
           </button>

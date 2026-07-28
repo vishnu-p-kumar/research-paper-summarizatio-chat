@@ -1,10 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Upload from "../components/Upload.jsx";
 import Summary from "../components/Summary.jsx";
 import Chat from "../components/Chat.jsx";
-
-const LS_DOC_ID = "ai_paper_doc_id";
-const LS_PREVIEW = "ai_paper_preview";
 
 const workflow = [
   { label: "Upload", detail: "PDF or URL" },
@@ -27,22 +24,12 @@ const sections = [
 ];
 
 export default function Dashboard() {
-  const [docId, setDocId] = useState(() => localStorage.getItem(LS_DOC_ID) || "");
-  const [preview, setPreview] = useState(() => localStorage.getItem(LS_PREVIEW) || "");
+  const [docId, setDocId] = useState("");
+  const [preview, setPreview] = useState("");
   const [uploadError, setUploadError] = useState("");
   const [activeSection, setActiveSection] = useState("summaries");
 
   const hasDoc = useMemo(() => Boolean(docId), [docId]);
-
-  useEffect(() => {
-    if (docId) localStorage.setItem(LS_DOC_ID, docId);
-    else localStorage.removeItem(LS_DOC_ID);
-  }, [docId]);
-
-  useEffect(() => {
-    if (preview) localStorage.setItem(LS_PREVIEW, preview);
-    else localStorage.removeItem(LS_PREVIEW);
-  }, [preview]);
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
@@ -207,11 +194,12 @@ export default function Dashboard() {
                       })}
                     </div>
                   </div>
-                  {activeSection === "summaries" ? (
+                  <div className={activeSection === "summaries" ? "block" : "hidden"}>
                     <Summary docId={docId} />
-                  ) : (
+                  </div>
+                  <div className={activeSection === "chat" ? "block" : "hidden"}>
                     <Chat docId={docId} />
-                  )}
+                  </div>
             </div>
           </div>
         </div>

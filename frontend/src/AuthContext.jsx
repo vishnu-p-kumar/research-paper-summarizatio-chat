@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { getMe, loginUser, logoutUser, registerUser } from "./auth.js";
 
 const AuthContext = createContext(null);
+const AUTH_SESSION_KEY = "research_ai_auth_session";
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -9,6 +10,14 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     let mounted = true;
+    if (!sessionStorage.getItem(AUTH_SESSION_KEY)) {
+      logoutUser().catch(() => {});
+      setUser(null);
+      setLoading(false);
+      return () => {
+        mounted = false;
+      };
+    }
     getMe()
       .then((data) => {
         if (mounted) setUser(data);
@@ -26,21 +35,29 @@ export function AuthProvider({ children }) {
 
   async function login(payload) {
     const data = await loginUser(payload);
+    sessionStorage.setItem(AUTH_SESSION_KEY, "1");
     setUser(data.user);
     return data;
   }
 
   async function register(payload) {
     const data = await registerUser(payload);
+    sessionStorage.setItem(AUTH_SESSION_KEY, "1");
     setUser(data.user);
     return data;
   }
 
   async function logout() {
-    await logoutUser();
-    setUser(null);
-    window.history.pushState({}, "", "/login");
-    window.dispatchEvent(new PopStateEvent("popstate"));
+    try {
+      await logoutUser();
+    } finally {
+      localStorage.removeItem("ai_paper_doc_id");
+      localStorage.removeItem("ai_paper_preview");
+      sessionStorage.removeItem(AUTH_SESSION_KEY);
+      setUser(null);
+      window.history.pushState({}, "", "/login");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    }
   }
 
   const value = useMemo(

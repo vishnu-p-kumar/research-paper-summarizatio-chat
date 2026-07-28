@@ -1,27 +1,202 @@
 # AI Research Paper Summarizer + Chat
 
-Full-stack app for uploading research papers, generating structured summaries, and chatting with papers through retrieval-augmented generation.
+A full-stack research assistant for uploading papers, generating summaries, and asking paper-grounded questions through retrieval-augmented generation.
 
-## Stack
+## Current Stack
 
-- Frontend: React + Vite + Tailwind CSS
+- Frontend: React 18, Vite, Tailwind CSS
 - Backend: FastAPI
+- Auth: JWT access/refresh tokens in HttpOnly browser-session cookies
 - Database: PostgreSQL
-- Auth: JWT in HttpOnly cookies
-- AI provider: Google Gemini API
-- Deployment target: Vercel
+- ORM/migrations: SQLAlchemy ORM + Alembic
+- RAG storage: PostgreSQL tables for documents, chunks, and JSONB embeddings
+- Embeddings: deterministic hashing embedder in Python
+- LLM provider: Google Gemini REST API
+- Deployment: Vercel frontend + Vercel Python serverless FastAPI entrypoint
 
-## Free-Tier Friendly Services
+## Features
 
-- Vercel Hobby can host the frontend and serverless API.
-- Neon Postgres has a free tier suitable for testing and small projects.
-- RAG embeddings use deterministic hashing in code, so no paid embedding API is required.
-- Web fallback uses DuckDuckGo HTML scraping, so no paid search API key is required.
-- Gemini API may provide free quota with rate limits through Google AI Studio. Check your account quota before public use.
+- Register, login, logout, forgot password, and reset password pages
+- Protected dashboard and protected backend APIs
+- PDF upload and URL ingestion
+- Paper summary generation
+- Paper-grounded chat with retrieved document chunks
+- Session-only uploaded-paper state in the browser
+- Uploaded paper information clears on page refresh or logout
+- Summary and chat state remain while switching sections in the same page session
+- Per-user document access checks
+- PostgreSQL persistence for uploaded paper text/chunks
 
-## Vercel Environment Variables
+## Architecture
 
-Add these in Vercel Project Settings -> Environment Variables:
+```text
+Browser
+  |
+  | React + Vite frontend
+  | - Auth pages
+  | - Protected dashboard
+  | - Upload / Summary / Chat UI
+  | - Axios with credentials for HttpOnly cookies
+  |
+  v
+Vercel routing
+  |
+  | Static frontend: frontend/dist
+  | API rewrites: /api/*, /upload/*, /summarize, /chat, /models, /health
+  |
+  v
+FastAPI serverless entrypoint
+  api/index.py -> backend/app/main.py
+  |
+  | Routes
+  | - auth.py
+  | - upload.py
+  | - summarize.py
+  | - chat.py
+  | - models.py
+  |
+  v
+Services
+  |
+  | AuthService
+  | - bcrypt password hashing
+  | - JWT session cookies
+  | - login rate limiting
+  |
+  | RagStore
+  | - chunk text
+  | - hash embeddings
+  | - store documents/chunks in PostgreSQL
+  | - retrieve top chunks by cosine similarity
+  |
+  | Summarizer + Gemini service
+  | - chunk summaries
+  | - final structured summary JSON
+  | - equation explanations
+  |
+  v
+External services
+  |
+  | PostgreSQL
+  | Google Gemini API
+  | DuckDuckGo HTML fallback, optional
+```
+
+## Important Project Files
+
+```text
+api/index.py
+  Vercel Python entrypoint. Imports FastAPI app from backend/app/main.py.
+
+vercel.json
+  Vercel build and rewrite configuration.
+
+backend/app/main.py
+  FastAPI app factory, CORS, route registration, startup schema creation.
+
+backend/app/config.py
+  Environment variable configuration.
+
+backend/app/routes/auth.py
+  Register, login, logout, forgot password, reset password, and /me routes.
+
+backend/app/routes/upload.py
+  Protected PDF and URL upload routes.
+
+backend/app/routes/summarize.py
+  Protected summary route.
+
+backend/app/routes/chat.py
+  Protected RAG chat route.
+
+backend/app/services/rag_pipeline.py
+  PostgreSQL-backed document/chunk storage and retrieval.
+
+backend/app/services/llama_service.py
+  Compatibility wrapper around Google Gemini generateContent REST API.
+
+backend/app/services/summarizer.py
+  Paper chunk summarization, final summary JSON, equation detection/explanation.
+
+backend/app/models/user.py
+  SQLAlchemy user model.
+
+backend/alembic/
+  Alembic migration setup and users table migration.
+
+frontend/src/App.jsx
+  Route-aware app shell, auth redirects, protected dashboard shell.
+
+frontend/src/AuthContext.jsx
+  Frontend auth provider.
+
+frontend/src/pages/AuthPages.jsx
+  Login, register, forgot password, reset password pages.
+
+frontend/src/pages/Dashboard.jsx
+  Upload area, Summary/Chat section switching, in-memory document state.
+```
+
+## Data Flow
+
+1. User logs in or registers.
+2. Backend sets HttpOnly session cookies.
+3. Frontend calls `/api/me` on load to restore the current session.
+4. User uploads a PDF or URL.
+5. Backend extracts text and stores:
+   - `documents.doc_id`
+   - `documents.user_id`
+   - raw text
+   - chunks
+   - JSONB hash embeddings
+6. Summary route loads the user-owned document text and calls Gemini.
+7. Chat route retrieves top chunks for that user-owned document and calls Gemini with retrieved context.
+8. Refreshing the browser page clears current uploaded-paper state in the frontend.
+9. Logging out clears auth cookies and frontend uploaded-paper state.
+
+## Database Tables
+
+`users`
+
+- `id`
+- `full_name`
+- `email`
+- `password_hash`
+- `created_at`
+- `updated_at`
+
+`documents`
+
+- `doc_id`
+- `user_id`
+- `text`
+- `created_at`
+
+`document_chunks`
+
+- `doc_id`
+- `chunk_id`
+- `content`
+- `embedding`
+
+The `users` table is managed by Alembic. The RAG tables are created automatically by the backend if missing.
+
+## Environment Variables
+
+Use the templates:
+
+- `.env.example`
+- `.env.vercel.example`
+- `backend/.env.example`
+- `frontend/.env.example`
+
+Real secrets should go only in:
+
+- `backend/.env`
+- `frontend/.env.local`
+- Vercel Environment Variables
+
+Required backend/Vercel variables:
 
 ```env
 DATABASE_URL=PASTE_YOUR_DATABASE_URL_HERE
@@ -46,24 +221,32 @@ CHUNK_OVERLAP=200
 MAX_UPLOAD_MB=10
 ```
 
-Do not set `VITE_API_BASE_URL` on Vercel when frontend and backend are deployed in the same Vercel project. The frontend uses same-origin `/api/*` routes in production.
+For local HTTP development:
 
-## Local Environment Files
+```env
+COOKIE_SECURE=0
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+```
 
-Use these templates:
+Frontend local variable:
 
-- `.env.example`: backend env variables with comments
-- `.env.vercel.example`: Vercel env variables
-- `backend/.env.example`: local backend env template
-- `frontend/.env.example`: local frontend env template
+```env
+VITE_API_BASE_URL=http://localhost:8000
+```
 
-Real secrets should go only in:
+On Vercel, leave `VITE_API_BASE_URL` unset when frontend and backend are deployed together.
 
-- `backend/.env`
-- `frontend/.env.local`
-- Vercel Environment Variables
+## Free-Tier Notes
+
+- Vercel Hobby can host the app for personal projects.
+- Neon Postgres has a free tier suitable for small projects.
+- The hashing embedder requires no paid embedding API.
+- DuckDuckGo fallback requires no paid API key, but it is best-effort.
+- Gemini API may include free quota depending on your Google AI Studio account and region.
 
 ## API Endpoints
+
+Auth:
 
 - `POST /register`
 - `POST /login`
@@ -71,6 +254,18 @@ Real secrets should go only in:
 - `POST /forgot-password`
 - `POST /reset-password`
 - `GET /me`
+
+Vercel-safe auth aliases used by the frontend:
+
+- `POST /api/register`
+- `POST /api/login`
+- `POST /api/logout`
+- `POST /api/forgot-password`
+- `POST /api/reset-password`
+- `GET /api/me`
+
+Research APIs:
+
 - `POST /upload/pdf`
 - `POST /upload/url`
 - `POST /summarize`
@@ -78,7 +273,9 @@ Real secrets should go only in:
 - `GET /models`
 - `GET /health`
 
-## Copy-Paste Local Run Commands
+Protected routes require the HttpOnly auth cookies.
+
+## Local Development
 
 Before running, replace:
 
@@ -111,8 +308,51 @@ npm install
 npm run dev
 ```
 
-Then open:
+Open:
 
 ```text
 http://localhost:5173
 ```
+
+## Verification Commands
+
+Backend syntax check:
+
+```powershell
+python -m compileall api backend\app
+```
+
+Frontend production build:
+
+```powershell
+npm.cmd --prefix frontend run build
+```
+
+Root Vercel-style build:
+
+```powershell
+npm.cmd run build
+```
+
+## Deployment On Vercel
+
+1. Push the repository to GitHub.
+2. Import the repo into Vercel.
+3. Add all required environment variables from `.env.vercel.example`.
+4. Use the included `vercel.json`.
+5. Deploy.
+
+Expected Vercel settings:
+
+- Build Command: `cd frontend && npm ci && npm run build`
+- Output Directory: `frontend/dist`
+- Python API entrypoint: `api/index.py`
+
+## Operational Notes
+
+- Browser refresh clears uploaded-paper state in the frontend.
+- Logout clears auth cookies and uploaded-paper frontend state.
+- Closing the tab/browser clears the frontend session marker, so reopening the app asks for login again.
+- Switching between Summary and Chat keeps the current page state.
+- Uploaded documents remain in PostgreSQL for backend retrieval while their `doc_id` is in memory.
+- The reset password route currently logs a reset token server-side. For real production email delivery, connect an email provider such as Resend, SendGrid, or SES.

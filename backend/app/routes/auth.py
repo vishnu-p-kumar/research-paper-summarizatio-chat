@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_current_user
 from app.auth.security import create_access_token, create_refresh_token, decode_token
-from app.config import ACCESS_TOKEN_EXPIRE_MINUTES, COOKIE_SECURE, REFRESH_TOKEN_EXPIRE_DAYS
+from app.config import COOKIE_SECURE
 from app.db import get_db
 from app.models.user import User
 from app.schemas.auth import (
@@ -26,21 +26,30 @@ router = APIRouter(prefix="", tags=["auth"])
 def _set_auth_cookies(response: Response, email: str, remember_me: bool) -> None:
     access_token = create_access_token(email, remember_me=remember_me)
     refresh_token = create_refresh_token(email, remember_me=remember_me)
-    access_max_age = ACCESS_TOKEN_EXPIRE_MINUTES * 60 * (7 if remember_me else 1)
-    refresh_max_age = REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60 if remember_me else 24 * 60 * 60
     cookie_args = {
-    "httponly": True,
-    "secure": True,
-    "samesite": "none",
-    "path": "/",
+        "httponly": True,
+        "secure": COOKIE_SECURE,
+        "samesite": "none" if COOKIE_SECURE else "lax",
+        "path": "/",
     }
-    response.set_cookie("access_token", access_token, max_age=access_max_age, **cookie_args)
-    response.set_cookie("refresh_token", refresh_token, max_age=refresh_max_age, **cookie_args)
+    # No max_age/expires: browser session cookies disappear when the browser session ends.
+    response.set_cookie("access_token", access_token, **cookie_args)
+    response.set_cookie("refresh_token", refresh_token, **cookie_args)
 
 
 def _clear_auth_cookies(response: Response) -> None:
-    response.delete_cookie("access_token", path="/")
-    response.delete_cookie("refresh_token", path="/")
+    response.delete_cookie(
+        "access_token",
+        path="/",
+        secure=COOKIE_SECURE,
+        samesite="none" if COOKIE_SECURE else "lax",
+    )
+    response.delete_cookie(
+        "refresh_token",
+        path="/",
+        secure=COOKIE_SECURE,
+        samesite="none" if COOKIE_SECURE else "lax",
+    )
 
 
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
@@ -49,7 +58,7 @@ async def register(payload: RegisterRequest, response: Response, db: Session = D
         user = AuthService(db).register(payload.full_name, payload.email, payload.password)
     except AuthError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    _set_auth_cookies(response, user.email, remember_me=True)
+    _set_auth_cookies(response, user.email, remember_me=False)
     return {"user": user, "message": "Account created successfully."}
 
 
@@ -107,7 +116,7 @@ async def me(
     if not email and refresh_token:
         try:
             email = decode_token(refresh_token, "refresh")
-            _set_auth_cookies(response, email, remember_me=True)
+            _set_auth_cookies(response, email, remember_me=False)
         except ValueError:
             email = None
     if not email:

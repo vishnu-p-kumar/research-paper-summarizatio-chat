@@ -4,9 +4,8 @@ import math
 import re
 import threading
 import uuid
-from hashlib import sha256
-from dataclasses import dataclass
 from typing import List, Tuple
+from hashlib import sha256
 
 import psycopg
 from psycopg.rows import dict_row
@@ -62,12 +61,6 @@ class HashingEmbedder:
 
     def encode_many(self, texts: List[str]) -> List[List[float]]:
         return [self.encode_one(text) for text in texts]
-
-
-@dataclass
-class RagDocument:
-    doc_id: str
-    text: str
 
 
 class RagStore:
