@@ -15,6 +15,10 @@ class Base(DeclarativeBase):
 def _database_url() -> str:
     if not DATABASE_URL:
         raise RuntimeError("DATABASE_URL is required.")
+    if DATABASE_URL.startswith("postgresql://"):
+        return DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
+    if DATABASE_URL.startswith("postgres://"):
+        return DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
     return DATABASE_URL
 
 

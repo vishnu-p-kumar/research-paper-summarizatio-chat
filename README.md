@@ -12,7 +12,7 @@ A full-stack research assistant for uploading papers, generating summaries, and 
 - RAG storage: PostgreSQL tables for documents, chunks, and JSONB embeddings
 - Embeddings: deterministic hashing embedder in Python
 - LLM provider: Google Gemini REST API
-- Deployment: Vercel frontend + Vercel Python serverless FastAPI entrypoint
+- Deployment: Render backend + Vercel frontend
 
 ## Features
 
@@ -39,14 +39,14 @@ Browser
   | - Axios with credentials for HttpOnly cookies
   |
   v
-Vercel routing
+Vercel frontend routing
   |
   | Static frontend: frontend/dist
-  | API rewrites: /api/*, /upload/*, /summarize, /chat, /models, /health
+  | API base URL points to Render via VITE_API_BASE_URL
   |
   v
-FastAPI serverless entrypoint
-  api/index.py -> backend/app/main.py
+Render FastAPI service
+  backend/app/main.py
   |
   | Routes
   | - auth.py
@@ -86,10 +86,13 @@ External services
 
 ```text
 api/index.py
-  Vercel Python entrypoint. Imports FastAPI app from backend/app/main.py.
+  Legacy Vercel Python entrypoint. Not required when backend is deployed on Render.
 
 vercel.json
-  Vercel build and rewrite configuration.
+  Frontend-only Vercel build and SPA rewrite configuration.
+
+frontend/vercel.json
+  Frontend-only Vercel config when the Vercel root directory is set to frontend.
 
 backend/app/main.py
   FastAPI app factory, CORS, route registration, startup schema creation.
@@ -195,8 +198,9 @@ Real secrets should go only in:
 - `backend/.env`
 - `frontend/.env.local`
 - Vercel Environment Variables
+- Render Environment Variables
 
-Required backend/Vercel variables:
+Required Render backend variables:
 
 ```env
 DATABASE_URL=PASTE_YOUR_DATABASE_URL_HERE
@@ -206,7 +210,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 REFRESH_TOKEN_EXPIRE_DAYS=14
 RESET_TOKEN_EXPIRE_MINUTES=30
 COOKIE_SECURE=1
-CORS_ORIGINS=https://your-app.vercel.app
+CORS_ORIGINS=https://your-frontend.vercel.app
 GEMINI_API_KEY=PASTE_YOUR_GEMINI_API_KEY_HERE
 GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta
 MODEL_NAME=gemini-3.6-flash
@@ -234,7 +238,11 @@ Frontend local variable:
 VITE_API_BASE_URL=http://localhost:8000
 ```
 
-On Vercel, leave `VITE_API_BASE_URL` unset when frontend and backend are deployed together.
+On Vercel, set `VITE_API_BASE_URL` to your Render backend URL:
+
+```env
+VITE_API_BASE_URL=https://your-render-backend.onrender.com
+```
 
 ## Free-Tier Notes
 
@@ -328,25 +336,53 @@ Frontend production build:
 npm.cmd --prefix frontend run build
 ```
 
-Root Vercel-style build:
+Root frontend build:
 
 ```powershell
 npm.cmd run build
 ```
 
-## Deployment On Vercel
+## Backend Deployment On Render
 
-1. Push the repository to GitHub.
-2. Import the repo into Vercel.
-3. Add all required environment variables from `.env.vercel.example`.
-4. Use the included `vercel.json`.
-5. Deploy.
+If Render Root Directory is `backend`:
 
-Expected Vercel settings:
+- Build Command: `pip install -r requirements.txt`
+- Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 
-- Build Command: `cd frontend && npm ci && npm run build`
-- Output Directory: `frontend/dist`
-- Python API entrypoint: `api/index.py`
+If Render Root Directory is the repository root:
+
+- Build Command: `pip install -r backend/requirements.txt`
+- Start Command: `cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+
+Render troubleshooting:
+
+- If you see `ModuleNotFoundError: No module named 'psycopg2'`, SQLAlchemy was trying to use the old psycopg2 driver.
+- This project converts `postgresql://...` to `postgresql+psycopg://...` for SQLAlchemy automatically.
+- Keep your `DATABASE_URL` as the normal Render/Neon value, usually starting with `postgresql://`.
+
+## Frontend Deployment On Vercel
+
+Add this Vercel environment variable:
+
+```env
+VITE_API_BASE_URL=https://your-render-backend.onrender.com
+```
+
+If Vercel Root Directory is the repository root:
+
+- Build Command: use the included root `vercel.json`
+- Output Directory: `dist`
+
+If Vercel Root Directory is `frontend`:
+
+- Build Command: `npm ci && npm run build`
+- Output Directory: `dist`
+- The included `frontend/vercel.json` supports this setup.
+
+Vercel troubleshooting:
+
+- If you see `cd: frontend: No such file or directory`, Vercel is already building from inside the `frontend` directory.
+- Set Build Command to `npm ci && npm run build` and Output Directory to `dist`.
 
 ## Operational Notes
 
