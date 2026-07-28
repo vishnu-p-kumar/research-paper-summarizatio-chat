@@ -24,7 +24,6 @@ function formatAssistantText(text) {
         .replace(/^\s{0,3}#{1,6}\s+/g, "")
         .replace(/^\s*>\s?/g, "")
         .replace(/^\s*[-*]\s+/g, "")
-        .replace(/^\s*\d+\.\s+/g, "")
         .replace(/\*\*(.*?)\*\*/g, "$1")
         .replace(/\*(.*?)\*/g, "$1")
         .replace(/`([^`]+)`/g, "$1")

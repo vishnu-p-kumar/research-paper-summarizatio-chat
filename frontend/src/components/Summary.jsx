@@ -9,6 +9,25 @@ function prettyError(err) {
   );
 }
 
+function formatPlainText(text) {
+  return String(text || "")
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) =>
+      line
+        .replace(/^\s{0,3}#{1,6}\s+/g, "")
+        .replace(/^\s*>\s?/g, "")
+        .replace(/^\s*[-*]\s+/g, "")
+        .replace(/\*\*(.*?)\*\*/g, "$1")
+        .replace(/\*(.*?)\*/g, "$1")
+        .replace(/`([^`]+)`/g, "$1")
+        .trimEnd()
+    )
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export default function Summary({ docId }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -77,7 +96,7 @@ export default function Summary({ docId }) {
               Summary
             </div>
             <div className="whitespace-pre-wrap text-sm leading-6 text-fz-textmuted">
-              {data.summary || data.detailed_summary}
+              {formatPlainText(data.summary || data.detailed_summary)}
             </div>
           </div>
 
@@ -116,7 +135,7 @@ export default function Summary({ docId }) {
                       {e.equation}
                     </div>
                     <div className="mt-3 whitespace-pre-wrap text-sm leading-6 text-fz-textmuted">
-                      {e.explanation}
+                      {formatPlainText(e.explanation)}
                     </div>
                   </div>
                 ))}

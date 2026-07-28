@@ -94,6 +94,17 @@ _STOPWORDS = {
 }
 
 
+ANSWER_STYLE = """
+Write the answer in clear plain text.
+Start with a short explanatory paragraph.
+Then, when useful, add numbered points using this format:
+1. Point title: explanation
+2. Point title: explanation
+Use simple language and keep each point understandable.
+Do not use Markdown headings, bold text, bullet symbols, asterisks, or blockquotes.
+""".strip()
+
+
 def _paper_mentions_query_terms(paper_text: str, query: str) -> bool:
     """
     Heuristic: if any meaningful query term appears in the PDF text, use RAG.
@@ -155,7 +166,7 @@ You are a helpful assistant.
 
 Answer the question using your general knowledge AND the web snippets below.
 If web snippets are provided, prefer them and include 2-4 short citations as URLs.
-Write in plain text. Do not use Markdown headings, bold text, bullet symbols, or blockquotes.
+{ANSWER_STYLE}
 
 Web snippets:
 {web_context or "No web snippets available."}
@@ -175,7 +186,7 @@ Question:
 
         prompt = f"""
 Answer using your general knowledge.
-Write in plain text. Do not use Markdown headings, bold text, bullet symbols, or blockquotes.
+{ANSWER_STYLE}
 
 Question:
 {payload.query}
@@ -197,7 +208,7 @@ Question:
     prompt = f"""
 You are a careful assistant. Answer the user's question using ONLY the provided context.
 If the answer is not in the context, say you don't have enough information from the paper.
-Write in plain text. Do not use Markdown headings, bold text, bullet symbols, or blockquotes.
+{ANSWER_STYLE}
 
 Context:
 {context}
@@ -228,7 +239,7 @@ You are a helpful assistant.
 
 The paper context was insufficient. Answer using your general knowledge AND the web snippets below.
 If web snippets are provided, prefer them and include 2-4 short citations as URLs.
-Write in plain text. Do not use Markdown headings, bold text, bullet symbols, or blockquotes.
+{ANSWER_STYLE}
 
 Web snippets:
 {web_context or "No web snippets available."}

@@ -85,9 +85,11 @@ class Summarizer:
         prompt = f"""
 You are an expert research assistant.
 
-Summarize this research paper chunk ({idx}/{total}) in 6-10 bullet points.
+Summarize this research paper chunk ({idx}/{total}) in clear plain text.
 Focus on: problem, approach, key methods, experiments, results, and limitations.
 If this chunk includes equations or algorithm steps, include a brief note.
+Use a short paragraph followed by numbered points when useful.
+Do not use Markdown headings, bold text, bullet symbols, asterisks, or blockquotes.
 
 Chunk:
 {chunk}
@@ -114,14 +116,16 @@ Using ONLY the chunk summaries below (which together cover the full paper),
 return ONLY valid JSON with this exact schema:
 {{
   "summary": "complete multi-paragraph research paper summary",
-  "key_concepts": ["bullet point 1", "bullet point 2"],
+  "key_concepts": ["concept 1: clear explanation", "concept 2: clear explanation"],
   "equations_detected": ["eq1", "eq2"]
 }}
 
 Rules:
 - Ensure the JSON is parseable.
-- summary should be clear, complete, and structured in multiple paragraphs.
-- key_concepts should be 6-12 items.
+- summary should start with 1-2 explanatory paragraphs.
+- After the paragraphs, include numbered points for objectives, method, results, limitations, and conclusion.
+- Use plain text only. Do not use Markdown headings, bold text, bullet symbols, asterisks, or blockquotes.
+- key_concepts should be 6-12 items, each with a short explanation.
 - equations_detected can be empty (we will also detect heuristically).
 
 Chunk summaries:
@@ -152,7 +156,14 @@ Chunk summaries:
     def explain_equations(self, equations: List[str]) -> List[Dict[str, str]]:
         explanations: List[Dict[str, str]] = []
         for eq in equations[:8]:
-            prompt = f"Explain this equation in simple terms (2-4 sentences):\n\n{eq}"
+            prompt = f"""
+Explain this equation in simple terms.
+Use one short paragraph, then 2-3 numbered points if useful.
+Do not use Markdown headings, bold text, bullet symbols, asterisks, or blockquotes.
+
+Equation:
+{eq}
+""".strip()
             explanation = self._llm.generate_response(prompt)
             explanations.append({"equation": eq, "explanation": explanation})
         return explanations
