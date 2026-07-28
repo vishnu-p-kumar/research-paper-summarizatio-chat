@@ -155,6 +155,7 @@ You are a helpful assistant.
 
 Answer the question using your general knowledge AND the web snippets below.
 If web snippets are provided, prefer them and include 2-4 short citations as URLs.
+Write in plain text. Do not use Markdown headings, bold text, bullet symbols, or blockquotes.
 
 Web snippets:
 {web_context or "No web snippets available."}
@@ -172,7 +173,13 @@ Question:
                 "mode": "web",
             }
 
-        prompt = f"Answer using your general knowledge:\n\n{payload.query}"
+        prompt = f"""
+Answer using your general knowledge.
+Write in plain text. Do not use Markdown headings, bold text, bullet symbols, or blockquotes.
+
+Question:
+{payload.query}
+""".strip()
         try:
             answer = llm.generate_response(prompt)
         except Exception as e:
@@ -190,6 +197,7 @@ Question:
     prompt = f"""
 You are a careful assistant. Answer the user's question using ONLY the provided context.
 If the answer is not in the context, say you don't have enough information from the paper.
+Write in plain text. Do not use Markdown headings, bold text, bullet symbols, or blockquotes.
 
 Context:
 {context}
@@ -220,6 +228,7 @@ You are a helpful assistant.
 
 The paper context was insufficient. Answer using your general knowledge AND the web snippets below.
 If web snippets are provided, prefer them and include 2-4 short citations as URLs.
+Write in plain text. Do not use Markdown headings, bold text, bullet symbols, or blockquotes.
 
 Web snippets:
 {web_context or "No web snippets available."}

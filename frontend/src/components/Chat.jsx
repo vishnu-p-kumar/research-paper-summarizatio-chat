@@ -15,6 +15,26 @@ function prettyError(err) {
   );
 }
 
+function formatAssistantText(text) {
+  return String(text || "")
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) =>
+      line
+        .replace(/^\s{0,3}#{1,6}\s+/g, "")
+        .replace(/^\s*>\s?/g, "")
+        .replace(/^\s*[-*]\s+/g, "")
+        .replace(/^\s*\d+\.\s+/g, "")
+        .replace(/\*\*(.*?)\*\*/g, "$1")
+        .replace(/\*(.*?)\*/g, "$1")
+        .replace(/`([^`]+)`/g, "$1")
+        .trimEnd()
+    )
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export default function Chat({ docId }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -103,7 +123,9 @@ export default function Chat({ docId }) {
                     : "mr-auto max-w-[85%] rounded-lg rounded-tl-sm bg-white/[0.08] px-4 py-3 text-sm leading-6 text-fz-text shadow-sm ring-1 ring-fz-border"
                 }
               >
-                <div className="whitespace-pre-wrap">{m.content}</div>
+                <div className="whitespace-pre-wrap">
+                  {m.role === "assistant" ? formatAssistantText(m.content) : m.content}
+                </div>
                 {m.role === "assistant" && Array.isArray(m.sources) && m.sources.length ? (
                   <div className="mt-3 border-t border-white/10 pt-2 text-xs font-medium text-fz-textmuted">
                     Sources:{" "}
