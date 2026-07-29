@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, Optional
 
 import requests
@@ -9,9 +10,31 @@ from app.config import (
     GEMINI_BASE_URL,
     GEMINI_FALLBACK_MODELS,
     GEMINI_MAX_TOKENS,
-    GEMINI_TEMPERATURE,
     MODEL_NAME,
 )
+
+
+MODEL_ALIASES = {
+    "gemini 3.6 flash": "gemini-3.6-flash",
+    "gemini 3.5 flash": "gemini-3.5-flash",
+    "gemini 3.5 flash lite": "gemini-3.5-flash-lite",
+    "gemini 3.1 flash lite": "gemini-3.1-flash-lite",
+    "gemini 2.5 flash": "gemini-2.5-flash",
+    "gemini 2.5 flash lite": "gemini-2.5-flash-lite",
+}
+
+
+def normalize_model_name(model_name: str | None) -> str:
+    raw = str(model_name or "").strip()
+    if raw.startswith("models/"):
+        raw = raw.removeprefix("models/")
+
+    key = re.sub(r"[_-]+", " ", raw).strip().lower()
+    if key in MODEL_ALIASES:
+        return MODEL_ALIASES[key]
+
+    # Google model ids are URL path segments, not display names.
+    return re.sub(r"\s+", "-", raw.lower())
 
 
 class LlamaService:
@@ -28,7 +51,7 @@ class LlamaService:
         timeout_s: int = 120,
     ) -> None:
         self.base_url = (base_url or GEMINI_BASE_URL).rstrip("/")
-        self.model_name = (model_name or MODEL_NAME or "gemini-3.6-flash").strip()
+        self.model_name = normalize_model_name(model_name or MODEL_NAME or "gemini-3.6-flash")
         self.timeout_s = timeout_s
 
     def generate_response(self, prompt: str, system: Optional[str] = None) -> str:
@@ -43,14 +66,16 @@ class LlamaService:
                 }
             ],
             "generationConfig": {
-                "temperature": GEMINI_TEMPERATURE,
                 "maxOutputTokens": GEMINI_MAX_TOKENS,
             },
         }
         if system:
             payload["systemInstruction"] = {"parts": [{"text": system}]}
 
-        model_names = [self.model_name, *[m for m in GEMINI_FALLBACK_MODELS if m != self.model_name]]
+        model_names = [
+            self.model_name,
+            *[normalize_model_name(m) for m in GEMINI_FALLBACK_MODELS if normalize_model_name(m) != self.model_name],
+        ]
         last_error: requests.HTTPError | None = None
         data: Dict[str, Any] | None = None
 
@@ -64,9 +89,9 @@ class LlamaService:
                 json=payload,
                 timeout=self.timeout_s,
             )
-            if resp.status_code == 404:
+            if resp.status_code in (400, 404):
                 last_error = requests.HTTPError(
-                    f"Gemini model '{model_name}' was not found or is unavailable for this API key.",
+                    f"Gemini model '{model_name}' was rejected, not found, or is unavailable for this API key.",
                     response=resp,
                 )
                 continue
