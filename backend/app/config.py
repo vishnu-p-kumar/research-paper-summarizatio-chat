@@ -1,9 +1,24 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
-
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROJECT_DIR = os.path.dirname(BASE_DIR)
+
+load_dotenv(os.path.join(PROJECT_DIR, ".env"))
+load_dotenv(os.path.join(BASE_DIR, ".env"), override=True)
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() not in ("0", "false", "no", "off", "")
+
+
+def _default_cookie_secure() -> bool:
+    return _env_flag("RENDER") or _env_flag("VERCEL") or os.getenv("ENVIRONMENT", "").lower() == "production"
+
+
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 CORS_ORIGINS = [
     origin.strip()
@@ -40,4 +55,4 @@ JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", 14))
 RESET_TOKEN_EXPIRE_MINUTES = int(os.getenv("RESET_TOKEN_EXPIRE_MINUTES", 30))
-COOKIE_SECURE = os.getenv("COOKIE_SECURE", "1").strip() not in ("0", "false", "False")
+COOKIE_SECURE = _env_flag("COOKIE_SECURE", default=_default_cookie_secure())
