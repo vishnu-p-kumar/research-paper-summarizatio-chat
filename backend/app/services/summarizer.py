@@ -139,10 +139,17 @@ class Summarizer:
         prompt = f"""
 You are an expert research assistant.
 
-Summarize this research paper chunk ({idx}/{total}) in clear plain text.
-Focus on: problem, approach, key methods, experiments, results, and limitations.
-If this chunk includes equations or algorithm steps, include a brief note.
-Use a short paragraph followed by numbered points when useful.
+Summarize ONLY the uploaded paper content in this chunk ({idx}/{total}).
+Do not add outside knowledge, assumptions, or generic background unless the text itself states it.
+
+Capture concrete details from this chunk:
+1. Research problem or motivation
+2. Proposed method, architecture, algorithm, dataset, or experimental setup
+3. Important implementation details, variables, metrics, equations, or design choices
+4. Results, findings, comparisons, ablations, or evidence
+5. Limitations, assumptions, failure cases, and future work
+
+Write a detailed plain-text chunk brief with enough specifics that a final summary can accurately reflect the uploaded PDF or URL.
 Do not use Markdown headings, bold text, bullet symbols, asterisks, or blockquotes.
 
 Chunk:
@@ -151,7 +158,7 @@ Chunk:
         return self._llm.generate_response(prompt)
 
     def summarize(self, paper_text: str) -> Dict[str, Any]:
-        # 1) Chunk and summarize ALL chunks so we don't drop PDF content.
+        # 1) Summarize representative chunks from the uploaded PDF/URL text.
         chunks = _chunk_for_llm(paper_text)
         chunk_summaries: List[str] = []
         total = max(1, len(chunks))
@@ -166,10 +173,10 @@ Chunk:
         prompt = f"""
 You are an expert research assistant.
 
-Using ONLY the chunk summaries below (which together cover the full paper),
+Using ONLY the chunk summaries below from the uploaded PDF or URL,
 return ONLY valid JSON with this exact schema:
 {{
-  "summary": "complete multi-paragraph research paper summary",
+  "summary": "detailed research paper summary grounded in the uploaded content",
   "key_concepts": [
     {{"name": "concept name", "explanation": "short clear explanation"}}
   ],
@@ -178,8 +185,17 @@ return ONLY valid JSON with this exact schema:
 
 Rules:
 - Ensure the JSON is parseable.
-- summary should start with 1-2 explanatory paragraphs.
-- After the paragraphs, include numbered points for objectives, method, results, limitations, and conclusion.
+- Do not add any claim that is not supported by the uploaded PDF or URL text.
+- If a detail is missing from the uploaded content, say it is not specified instead of guessing.
+- summary must be detailed and should include:
+  1. What the paper is about
+  2. Main objective or research question
+  3. Method, model, algorithm, system, or framework
+  4. Data, experiments, metrics, or evaluation setup when present
+  5. Main results and comparisons when present
+  6. Key limitations or assumptions
+  7. Final takeaway
+- Write 6-10 substantial paragraphs or numbered points, depending on what the uploaded content supports.
 - Use plain text only. Do not use Markdown headings, bold text, bullet symbols, asterisks, or blockquotes.
 - key_concepts should be 6-12 items, each with a concept name and short explanation.
 - equations_detected must contain the actual complete equation text or formula copied from the paper, not only the equation name.
