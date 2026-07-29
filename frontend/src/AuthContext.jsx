@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { AUTH_TOKEN_KEY } from "./api.js";
 import { getMe, loginUser, logoutUser, registerUser } from "./auth.js";
 
 const AuthContext = createContext(null);
@@ -36,6 +37,7 @@ export function AuthProvider({ children }) {
   async function login(payload) {
     const data = await loginUser(payload);
     sessionStorage.setItem(AUTH_SESSION_KEY, "1");
+    sessionStorage.setItem(AUTH_TOKEN_KEY, data.access_token);
     setUser(data.user);
     return data;
   }
@@ -43,6 +45,7 @@ export function AuthProvider({ children }) {
   async function register(payload) {
     const data = await registerUser(payload);
     sessionStorage.setItem(AUTH_SESSION_KEY, "1");
+    sessionStorage.setItem(AUTH_TOKEN_KEY, data.access_token);
     setUser(data.user);
     return data;
   }
@@ -54,6 +57,7 @@ export function AuthProvider({ children }) {
       localStorage.removeItem("ai_paper_doc_id");
       localStorage.removeItem("ai_paper_preview");
       sessionStorage.removeItem(AUTH_SESSION_KEY);
+      sessionStorage.removeItem(AUTH_TOKEN_KEY);
       setUser(null);
       window.history.pushState({}, "", "/login");
       window.dispatchEvent(new PopStateEvent("popstate"));

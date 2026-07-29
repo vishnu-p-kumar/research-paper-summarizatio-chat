@@ -23,7 +23,7 @@ from app.services.auth_service import AuthError, AuthService
 router = APIRouter(prefix="", tags=["auth"])
 
 
-def _set_auth_cookies(response: Response, email: str, remember_me: bool) -> None:
+def _set_auth_cookies(response: Response, email: str, remember_me: bool) -> str:
     access_token = create_access_token(email, remember_me=remember_me)
     refresh_token = create_refresh_token(email, remember_me=remember_me)
     cookie_args = {
@@ -35,6 +35,7 @@ def _set_auth_cookies(response: Response, email: str, remember_me: bool) -> None
     # No max_age/expires: browser session cookies disappear when the browser session ends.
     response.set_cookie("access_token", access_token, **cookie_args)
     response.set_cookie("refresh_token", refresh_token, **cookie_args)
+    return access_token
 
 
 def _clear_auth_cookies(response: Response) -> None:
@@ -58,8 +59,8 @@ async def register(payload: RegisterRequest, response: Response, db: Session = D
         user = AuthService(db).register(payload.full_name, payload.email, payload.password)
     except AuthError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    _set_auth_cookies(response, user.email, remember_me=False)
-    return {"user": user, "message": "Account created successfully."}
+    access_token = _set_auth_cookies(response, user.email, remember_me=False)
+    return {"user": user, "message": "Account created successfully.", "access_token": access_token}
 
 
 @router.post("/login", response_model=AuthResponse)
@@ -69,8 +70,8 @@ async def login(payload: LoginRequest, response: Response, db: Session = Depends
     except AuthError as exc:
         status_code = status.HTTP_429_TOO_MANY_REQUESTS if "Too many" in str(exc) else status.HTTP_401_UNAUTHORIZED
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    _set_auth_cookies(response, user.email, remember_me=payload.remember_me)
-    return {"user": user, "message": "Logged in successfully."}
+    access_token = _set_auth_cookies(response, user.email, remember_me=payload.remember_me)
+    return {"user": user, "message": "Logged in successfully.", "access_token": access_token}
 
 
 @router.post("/logout", response_model=MessageResponse)

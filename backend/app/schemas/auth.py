@@ -69,3 +69,4 @@ class MessageResponse(BaseModel):
 class AuthResponse(BaseModel):
     user: UserOut
     message: str
+    access_token: str
