@@ -37,6 +37,8 @@ GEMINI_FALLBACK_MODELS = [
 ]
 GEMINI_MAX_TOKENS = int(os.getenv("GEMINI_MAX_TOKENS", 800))
 GEMINI_TEMPERATURE = float(os.getenv("GEMINI_TEMPERATURE", 0.2))
+GEMINI_MAX_RETRIES = int(os.getenv("GEMINI_MAX_RETRIES", 3))
+GEMINI_RETRY_BACKOFF_S = float(os.getenv("GEMINI_RETRY_BACKOFF_S", 2))
 
 ENABLE_WEB_FALLBACK = os.getenv("ENABLE_WEB_FALLBACK", "1").strip() not in ("0", "false", "False")
 WEB_MAX_RESULTS = int(os.getenv("WEB_MAX_RESULTS", 5))

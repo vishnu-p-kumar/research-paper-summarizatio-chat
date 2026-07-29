@@ -97,15 +97,20 @@ def _normalize_key_concepts(items: Any) -> List[Dict[str, str]]:
     return concepts
 
 
-def _chunk_for_llm(text: str, max_chars: int = 6000, overlap: int = 400) -> List[str]:
+def _chunk_for_llm(text: str, max_chars: int = 25000, overlap: int = 800, max_chunks: int = 6) -> List[str]:
     """
-    Chunk text before sending it to the hosted model so we can cover the entire PDF.
+    Chunk text before sending it to the hosted model.
+
+    Gemini has a large context window, but free-tier quotas are usually request-rate
+    limited. For long papers, sample evenly across the document so one summary
+    request does not turn into dozens of API calls.
     Char-based chunking is simple and stable across different tokenizers.
     """
     if not text:
         return []
     max_chars = max(1000, int(max_chars))
     overlap = max(0, min(int(overlap), max_chars - 1))
+    max_chunks = max(1, int(max_chunks))
     chunks: List[str] = []
     start = 0
     n = len(text)
@@ -115,7 +120,15 @@ def _chunk_for_llm(text: str, max_chars: int = 6000, overlap: int = 400) -> List
         if end == n:
             break
         start = max(0, end - overlap)
-    return [c for c in chunks if c]
+    chunks = [c for c in chunks if c]
+    if len(chunks) <= max_chunks:
+        return chunks
+
+    selected: List[str] = []
+    for i in range(max_chunks):
+        idx = round(i * (len(chunks) - 1) / (max_chunks - 1)) if max_chunks > 1 else 0
+        selected.append(chunks[idx])
+    return selected
 
 
 class Summarizer:
@@ -139,7 +152,7 @@ Chunk:
 
     def summarize(self, paper_text: str) -> Dict[str, Any]:
         # 1) Chunk and summarize ALL chunks so we don't drop PDF content.
-        chunks = _chunk_for_llm(paper_text, max_chars=6000, overlap=400)
+        chunks = _chunk_for_llm(paper_text)
         chunk_summaries: List[str] = []
         total = max(1, len(chunks))
         for i, ch in enumerate(chunks, start=1):
@@ -207,33 +220,56 @@ Chunk summaries:
         return data
 
     def explain_equations(self, equations: List[str]) -> List[Dict[str, str]]:
-        explanations: List[Dict[str, str]] = []
-        for idx, eq in enumerate(equations[:8], start=1):
-            prompt = f"""
+        selected_equations = equations[:8]
+        if not selected_equations:
+            return []
+
+        equation_list = "\n".join(f"{idx}. {eq}" for idx, eq in enumerate(selected_equations, start=1))
+        prompt = f"""
 You are an expert research assistant.
 
 Return ONLY valid JSON with this exact schema:
 {{
-  "name": "short equation name",
-  "explanation": "short plain text explanation"
+  "equations": [
+    {{
+      "index": 1,
+      "name": "short equation name",
+      "explanation": "short plain text explanation"
+    }}
+  ]
 }}
 
 Rules:
-- Name the equation based on what it represents in the paper.
-- Keep the equation itself unchanged; do not replace it with a description.
-- The explanation should be simple and 2-4 sentences.
+- Return one item for each numbered equation.
+- Name each equation based on what it represents in the paper.
+- Keep explanations simple and 2-4 sentences.
 - Do not use Markdown headings, bold text, bullet symbols, asterisks, or blockquotes.
 
-Equation:
-{eq}
+Equations:
+{equation_list}
 """.strip()
-            raw = self._llm.generate_response(prompt)
-            parsed = _safe_json_loads(raw)
+        raw = self._llm.generate_response(prompt)
+        parsed = _safe_json_loads(raw)
+        items = parsed.get("equations") if isinstance(parsed, dict) else None
+        if not isinstance(items, list):
+            items = []
+
+        by_index = {}
+        for item in items:
+            if isinstance(item, dict):
+                try:
+                    by_index[int(item.get("index"))] = item
+                except Exception:
+                    continue
+
+        explanations: List[Dict[str, str]] = []
+        for idx, eq in enumerate(selected_equations, start=1):
+            item = by_index.get(idx, {})
             explanations.append(
                 {
-                    "name": str(parsed.get("name") or f"Equation {idx}").strip(),
+                    "name": str(item.get("name") or f"Equation {idx}").strip(),
                     "equation": eq,
-                    "explanation": str(parsed.get("explanation") or raw).strip(),
+                    "explanation": str(item.get("explanation") or "").strip(),
                 }
             )
         return explanations
